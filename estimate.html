@@ -1,1 +1,34 @@
-<h1>This is the estimate page</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Qualification System</title>
+</head>
+<body>
+    <h1>Request a Qualified Consultation</h1>
+
+  <form id="lead-form">
+    <input name="first_name" placeholder="First name" required />
+    <input name="email" type="email" placeholder="Email" required />
+    <button type="submit">Submit</button>
+  </form>
+
+  <script>
+    document.getElementById("lead-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.currentTarget;
+      const payload = Object.fromEntries(new FormData(form).entries());
+
+      const res = await fetch("/.netlify/functions/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      alert(json.ok ? "Submitted!" : "Error: " + (json.error || "unknown"));
+    });
+  </script>
+</body>
+</html>
