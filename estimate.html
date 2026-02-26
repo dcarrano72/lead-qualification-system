@@ -9,26 +9,107 @@
     <h1>Request a Qualified Consultation</h1>
 
   <form id="lead-form">
-    <input name="first_name" placeholder="First name" required />
-    <input name="email" type="email" placeholder="Email" required />
-    <button type="submit">Submit</button>
-  </form>
+
+  <h2>Request a Qualified Consultation</h2>
+
+  <label>
+    First Name
+    <input name="first_name" required />
+  </label>
+
+  <label>
+    Last Name
+    <input name="last_name" required />
+  </label>
+
+  <label>
+    Email
+    <input name="email" type="email" required />
+  </label>
+
+  <label>
+    Phone
+    <input name="phone" type="tel" required />
+  </label>
+
+  <label>
+    Project Type
+    <select name="project_type" required>
+      <option value="">Select a project</option>
+      <option value="kitchen_remodel">Kitchen Remodel</option>
+      <option value="bathroom_remodel">Bathroom Remodel</option>
+      <option value="roof_replacement">Roof Replacement</option>
+      <option value="home_addition">Home Addition</option>
+      <option value="deck_or_patio">Deck / Patio</option>
+      <option value="general_renovation">General Renovation</option>
+      <option value="other">Other</option>
+    </select>
+  </label>
+
+  <label>
+    Estimated Budget
+    <select name="budget_range" required>
+      <option value="">Select budget range</option>
+      <option value="under_5k">Under $5,000</option>
+      <option value="5k_15k">$5,000 – $15,000</option>
+      <option value="15k_30k">$15,000 – $30,000</option>
+      <option value="30k_60k">$30,000 – $60,000</option>
+      <option value="60k_plus">$60,000+</option>
+    </select>
+  </label>
+
+  <label>
+    Project Timeline
+    <select name="timeline" required>
+      <option value="">Select timeline</option>
+      <option value="asap">ASAP</option>
+      <option value="1_3_months">1–3 Months</option>
+      <option value="3_6_months">3–6 Months</option>
+      <option value="just_researching">Just Researching</option>
+    </select>
+  </label>
+
+  <label>
+    ZIP Code
+    <input name="zip" pattern="[0-9]{5}" required />
+  </label>
+
+  <label>
+    <input type="checkbox" name="decision_maker" value="true" />
+    I am the homeowner / decision maker
+  </label>
+
+  <label>
+    Project Description
+    <textarea name="description" rows="4"></textarea>
+  </label>
+
+  <button type="submit">Submit</button>
+
+</form>
+
 
   <script>
-    document.getElementById("lead-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const form = e.currentTarget;
-      const payload = Object.fromEntries(new FormData(form).entries());
+  document.getElementById("lead-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-      const res = await fetch("/.netlify/functions/lead", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    const form = e.currentTarget;
+    const payload = Object.fromEntries(new FormData(form).entries());
 
-      const json = await res.json();
-      alert(json.ok ? "Submitted!" : "Error: " + (json.error || "unknown"));
+    // Get URL parameters
+    const params = new URLSearchParams(window.location.search);
+    payload.client_slug = params.get("client") || null;
+    payload.source = params.get("source") || null;
+
+    const res = await fetch("/.netlify/functions/lead", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
-  </script>
+
+    const json = await res.json();
+    alert(json.ok ? "Submitted!" : "Error: " + (json.error || "unknown"));
+  });
+</script>
 </body>
 </html>
