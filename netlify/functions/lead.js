@@ -1,15 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
+import { Resend } from "resend";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 function scoreLead(data) {
   let score = 0;
   const notes = [];
 
-  // Budget scoring
   const budgetPoints = {
     under_5k: 0,
     "5k_15k": 10,
@@ -25,7 +27,6 @@ function scoreLead(data) {
     notes.push("Budget: +0 (missing/unknown)");
   }
 
-  // Timeline scoring
   const timelinePoints = {
     asap: 20,
     "1_3_months": 15,
@@ -40,7 +41,6 @@ function scoreLead(data) {
     notes.push("Timeline: +0 (missing/unknown)");
   }
 
-  // Decision maker scoring
   const decisionMaker =
     data.decision_maker === true ||
     data.decision_maker === "true" ||
@@ -52,7 +52,6 @@ function scoreLead(data) {
     notes.push("Decision maker: +0");
   }
 
-  // Description quality
   const desc = (data.description ?? "").trim();
   if (desc.length >= 50) {
     score += 10;
@@ -61,7 +60,6 @@ function scoreLead(data) {
     notes.push("Description detail: +0");
   }
 
-  // Phone present
   const phone = (data.phone ?? "").trim();
   if (phone.length > 0) {
     score += 5;
@@ -80,6 +78,12 @@ function scoreLead(data) {
   };
 }
 
+function label(v) {
+  if (!v) return "—";
+  // pretty-print select values like "60k_plus" -> "60k plus"
+  return String(v).replace(/_/g, " ");
+}
+
 export default async (req) => {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
@@ -95,7 +99,7 @@ export default async (req) => {
       );
     }
 
-    // Validate client exists
+    // Validate client exists + get notification email
     const { data: client, error: clientError } = await supabase
       .from("clients")
       .select("id, slug, company_name, notification_email")
@@ -113,36 +117,92 @@ export default async (req) => {
     const scored = scoreLead(data);
 
     // Insert lead
-    const { error } = await supabase.from("leads").insert([
-      {
-        client_slug: data.client_slug,
-        source: data.source ?? null,
+    const insertPayload = {
+      client_slug: data.client_slug,
+      source: data.source ?? null,
 
-        first_name: data.first_name ?? null,
-        last_name: data.last_name ?? null,
-        email: data.email ?? null,
-        phone: data.phone ?? null,
+      first_name: data.first_name ?? null,
+      last_name: data.last_name ?? null,
+      email: data.email ?? null,
+      phone: data.phone ?? null,
 
-        project_type: data.project_type ?? null,
-        budget_range: data.budget_range ?? null,
-        timeline: data.timeline ?? null,
-        zip: data.zip ?? null,
+      project_type: data.project_type ?? null,
+      budget_range: data.budget_range ?? null,
+      timeline: data.timeline ?? null,
+      zip: data.zip ?? null,
 
-        decision_maker: scored.decisionMaker,
-        description: data.description ?? null,
+      decision_maker: scored.decisionMaker,
+      description: data.description ?? null,
 
-        score: scored.score,
-        is_qualified: scored.isQualified,
-        qualification_notes: scored.notes,
-      },
-    ]);
+      score: scored.score,
+      is_qualified: scored.isQualified,
+      qualification_notes: scored.notes,
+    };
 
-    if (error) {
-      console.error("Insert error:", error);
+    const { data: inserted, error: insertError } = await supabase
+      .from("leads")
+      .insert([insertPayload])
+      .select("id, created_at")
+      .single();
+
+    if (insertError) {
+      console.error("Insert error:", insertError);
       return new Response(
-        JSON.stringify({ ok: false, error: error.message }),
+        JSON.stringify({ ok: false, error: insertError.message }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
+    }
+
+    // Email (send for both qualified + unqualified)
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+    const leadName = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || "New Lead";
+
+    const subjectPrefix = scored.isQualified ? "✅ Qualified" : "⚠️ Unqualified";
+    const subject = `${subjectPrefix} Lead (Score ${scored.score}) — ${label(
+      data.project_type
+    )}`;
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+        <h2>${subjectPrefix} Lead</h2>
+        <p><strong>Client:</strong> ${client.company_name} (${client.slug})</p>
+        <p><strong>Score:</strong> ${scored.score}<br/>
+           <strong>Notes:</strong> ${scored.notes}</p>
+
+        <hr/>
+
+        <p><strong>Name:</strong> ${leadName}<br/>
+           <strong>Email:</strong> ${data.email ?? "—"}<br/>
+           <strong>Phone:</strong> ${data.phone ?? "—"}<br/>
+           <strong>ZIP:</strong> ${data.zip ?? "—"}</p>
+
+        <p><strong>Project:</strong> ${label(data.project_type)}<br/>
+           <strong>Budget:</strong> ${label(data.budget_range)}<br/>
+           <strong>Timeline:</strong> ${label(data.timeline)}<br/>
+           <strong>Decision maker:</strong> ${scored.decisionMaker ? "Yes" : "No"}<br/>
+           <strong>Source:</strong> ${data.source ?? "—"}</p>
+
+        <p><strong>Description:</strong><br/>
+        ${String(data.description ?? "—").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+
+        <hr/>
+        <p style="color:#666; font-size: 12px;">
+          Lead ID: ${inserted?.id ?? "—"}<br/>
+          Received: ${inserted?.created_at ?? "—"}
+        </p>
+      </div>
+    `;
+
+    const { error: emailError } = await resend.emails.send({
+      from: fromEmail,
+      to: [client.notification_email],
+      subject,
+      html,
+    });
+
+    if (emailError) {
+      // Don't fail the request if email fails—lead is already saved.
+      console.error("Resend error:", emailError);
     }
 
     return new Response(
@@ -150,6 +210,7 @@ export default async (req) => {
         ok: true,
         score: scored.score,
         is_qualified: scored.isQualified,
+        emailed: !emailError,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
