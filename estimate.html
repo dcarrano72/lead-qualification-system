@@ -4,8 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lead Qualification System</title>
+
+    <style>
+
+        section {
+            text-align: center;
+        }
+        #lead-form {
+            width: 400px;
+            text-align: right;
+            padding-right: 100px;
+            background-color: lightslategray;
+        }
+        #lead-form input {
+            margin-bottom: 20px;
+            padding: 10px;
+        }
+    </style>
 </head>
 <body>
+
+<section>
     <h1>Request a Qualified Consultation</h1>
 
   <form id="lead-form">
@@ -88,7 +107,7 @@
 
 </form>
 
-
+</section>
   <script>
   document.getElementById("lead-form").addEventListener("submit", async (e) => {
     e.preventDefault();
