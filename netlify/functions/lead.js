@@ -13,15 +13,37 @@ export default async (req) => {
   try {
     const data = await req.json();
 
-    // Normalize checkbox value (FormData sends "true" when checked, and omits it when unchecked)
+    if (!data.client_slug) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Missing client slug" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // 1️ Validate client exists
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("slug", data.client_slug)
+      .single();
+
+    if (clientError || !client) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Invalid client" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Normalize checkbox
     const decisionMaker =
       data.decision_maker === true ||
       data.decision_maker === "true" ||
       data.decision_maker === "on";
 
+    // 2️ Insert lead
     const { error } = await supabase.from("leads").insert([
       {
-        client_slug: data.client_slug ?? null,
+        client_slug: data.client_slug,
         source: data.source ?? null,
 
         first_name: data.first_name ?? null,
@@ -51,6 +73,7 @@ export default async (req) => {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
+
   } catch (err) {
     console.error("Function error:", err);
     return new Response(
