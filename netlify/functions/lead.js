@@ -8,79 +8,145 @@ const supabase = createClient(
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+/**
+ * Industry-aware scoring presets.
+ * You can tune these numbers safely without changing logic.
+ */
+const SCORING_PRESETS = {
+  roofing: {
+    threshold: 50,
+    budget: {
+      under_5k: 0,
+      "5k_15k": 15,
+      "15k_30k": 25,
+      "30k_60k": 35,
+      "60k_plus": 40,
+      unknown: 0,
+    },
+    timeline: {
+      asap: 25,
+      "1_3_months": 20,
+      "3_6_months": 10,
+      just_researching: 0,
+    },
+    points: {
+      decisionMaker: 25,
+      descriptionPresent: 5, // any description counts
+      phonePresent: 5,
+    },
+  },
+
+  remodeling: {
+    threshold: 60,
+    // note: embed uses under_15k, 15k_30k, 30k_60k, 60k_plus
+    budget: {
+      under_15k: 0,
+      "15k_30k": 15,
+      "30k_60k": 25,
+      "60k_plus": 35,
+      unknown: 0,
+    },
+    timeline: {
+      asap: 20,
+      "1_3_months": 15,
+      "3_6_months": 10,
+      just_researching: 0,
+    },
+    points: {
+      decisionMaker: 20,
+      descriptionPresent: 5,
+      phonePresent: 5,
+    },
+  },
+
+  general: {
+    threshold: 55,
+    budget: {
+      unknown: 10, // "Not sure yet" shouldn't auto-kill the lead in general mode
+      under_5k: 0,
+      "5k_15k": 15,
+      "15k_30k": 25,
+      "30k_60k": 35,
+      "60k_plus": 40,
+      under_15k: 0,
+    },
+    timeline: {
+      asap: 20,
+      "1_3_months": 15,
+      "3_6_months": 10,
+      just_researching: 0,
+    },
+    points: {
+      decisionMaker: 20,
+      descriptionPresent: 5,
+      phonePresent: 5,
+    },
+  },
+};
+
 function scoreLead(data) {
+  const presetKey = String(data.preset || "general").toLowerCase();
+  const config = SCORING_PRESETS[presetKey] || SCORING_PRESETS.general;
+
   let score = 0;
   const notes = [];
 
-  const budgetPoints = {
-    under_5k: 0,
-    "5k_15k": 10,
-    "15k_30k": 20,
-    "30k_60k": 30,
-    "60k_plus": 40,
-  };
+  // Budget
   const b = data.budget_range;
-  if (b && b in budgetPoints) {
-    score += budgetPoints[b];
-    notes.push(`Budget: +${budgetPoints[b]}`);
-  } else {
-    notes.push("Budget: +0 (missing/unknown)");
-  }
+  const bPts = (b && config.budget[b] != null) ? config.budget[b] : 0;
+  score += bPts;
+  notes.push(`Budget: +${bPts}`);
 
-  const timelinePoints = {
-    asap: 20,
-    "1_3_months": 15,
-    "3_6_months": 10,
-    just_researching: 0,
-  };
+  // Timeline
   const t = data.timeline;
-  if (t && t in timelinePoints) {
-    score += timelinePoints[t];
-    notes.push(`Timeline: +${timelinePoints[t]}`);
-  } else {
-    notes.push("Timeline: +0 (missing/unknown)");
-  }
+  const tPts = (t && config.timeline[t] != null) ? config.timeline[t] : 0;
+  score += tPts;
+  notes.push(`Timeline: +${tPts}`);
 
+  // Decision maker (checkbox)
   const decisionMaker =
     data.decision_maker === true ||
     data.decision_maker === "true" ||
     data.decision_maker === "on";
   if (decisionMaker) {
-    score += 20;
-    notes.push("Decision maker: +20");
+    score += config.points.decisionMaker;
+    notes.push(`Decision maker: +${config.points.decisionMaker}`);
   } else {
     notes.push("Decision maker: +0");
   }
 
+  // Description: presence (NOT length-based)
   const desc = (data.description ?? "").trim();
-  if (desc.length >= 50) {
-    score += 10;
-    notes.push("Description detail: +10");
+  if (desc.length > 0) {
+    score += config.points.descriptionPresent;
+    notes.push(`Description present: +${config.points.descriptionPresent}`);
   } else {
-    notes.push("Description detail: +0");
+    notes.push("Description present: +0");
   }
 
+  // Phone
   const phone = (data.phone ?? "").trim();
   if (phone.length > 0) {
-    score += 5;
-    notes.push("Phone provided: +5");
+    score += config.points.phonePresent;
+    notes.push(`Phone provided: +${config.points.phonePresent}`);
   } else {
     notes.push("Phone provided: +0");
   }
 
-  const isQualified = score >= 60;
+  const isQualified = score >= config.threshold;
 
   return {
     score,
     isQualified,
     notes: notes.join(" | "),
     decisionMaker,
+    presetKey,
+    threshold: config.threshold,
   };
 }
 
 function label(v) {
   if (!v) return "—";
-  // pretty-print select values like "60k_plus" -> "60k plus"
   return String(v).replace(/_/g, " ");
 }
 
@@ -113,6 +179,9 @@ export default async (req) => {
       );
     }
 
+    // Backwards compatibility: embed.html sends service_type; older version used project_type
+    const projectType = data.service_type ?? data.project_type ?? null;
+
     // Score lead
     const scored = scoreLead(data);
 
@@ -126,7 +195,8 @@ export default async (req) => {
       email: data.email ?? null,
       phone: data.phone ?? null,
 
-      project_type: data.project_type ?? null,
+      // store in your existing column name
+      project_type: projectType,
       budget_range: data.budget_range ?? null,
       timeline: data.timeline ?? null,
       zip: data.zip ?? null,
@@ -137,6 +207,11 @@ export default async (req) => {
       score: scored.score,
       is_qualified: scored.isQualified,
       qualification_notes: scored.notes,
+
+      // Optional metadata (only if these columns exist; if not, Supabase will error)
+      // If you haven't added these columns, comment these two lines out:
+      // preset: scored.presetKey,
+      // qualification_threshold: scored.threshold,
     };
 
     const { data: inserted, error: insertError } = await supabase
@@ -155,18 +230,20 @@ export default async (req) => {
 
     // Email (send for both qualified + unqualified)
     const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
-    const leadName = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || "New Lead";
+    const leadName =
+      `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || "New Lead";
 
     const subjectPrefix = scored.isQualified ? "✅ Qualified" : "⚠️ Unqualified";
     const subject = `${subjectPrefix} Lead (Score ${scored.score}) — ${label(
-      data.project_type
+      projectType
     )}`;
 
     const html = `
       <div style="font-family: Arial, sans-serif; line-height: 1.5;">
         <h2>${subjectPrefix} Lead</h2>
         <p><strong>Client:</strong> ${client.company_name} (${client.slug})</p>
-        <p><strong>Score:</strong> ${scored.score}<br/>
+        <p><strong>Score:</strong> ${scored.score} (threshold ${scored.threshold})<br/>
+           <strong>Preset:</strong> ${label(scored.presetKey)}<br/>
            <strong>Notes:</strong> ${scored.notes}</p>
 
         <hr/>
@@ -176,7 +253,7 @@ export default async (req) => {
            <strong>Phone:</strong> ${data.phone ?? "—"}<br/>
            <strong>ZIP:</strong> ${data.zip ?? "—"}</p>
 
-        <p><strong>Project:</strong> ${label(data.project_type)}<br/>
+        <p><strong>Project:</strong> ${label(projectType)}<br/>
            <strong>Budget:</strong> ${label(data.budget_range)}<br/>
            <strong>Timeline:</strong> ${label(data.timeline)}<br/>
            <strong>Decision maker:</strong> ${scored.decisionMaker ? "Yes" : "No"}<br/>
@@ -211,6 +288,8 @@ export default async (req) => {
         score: scored.score,
         is_qualified: scored.isQualified,
         emailed: !emailError,
+        preset: scored.presetKey,
+        threshold: scored.threshold,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
