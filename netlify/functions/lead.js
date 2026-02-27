@@ -14,27 +14,27 @@ const resend = new Resend(process.env.RESEND_API_KEY);
  */
 const SCORING_PRESETS = {
   roofing: {
-    threshold: 50,
-    budget: {
-      under_5k: 0,
-      "5k_15k": 15,
-      "15k_30k": 25,
-      "30k_60k": 35,
-      "60k_plus": 40,
-      unknown: 0,
-    },
-    timeline: {
-      asap: 25,
-      "1_3_months": 20,
-      "3_6_months": 10,
-      just_researching: 0,
-    },
-    points: {
-      decisionMaker: 25,
-      descriptionPresent: 5, // any description counts
-      phonePresent: 5,
-    },
+  threshold: 55,
+  budget: {
+    under_5k: 0,
+    "5k_15k": 10,
+    "15k_30k": 30,
+    "30k_50k": 35,
+    "50k_plus": 40,
+    unknown: 5,
   },
+  timeline: {
+    asap: 30,
+    "1_3_months": 20,
+    "3_6_months": 10,
+    just_researching: 0,
+  },
+  points: {
+    decisionMaker: 25,
+    descriptionPresent: 5,
+    phonePresent: 5,
+  },
+},
 
   remodeling: {
     threshold: 60,
@@ -210,8 +210,8 @@ export default async (req) => {
 
       // Optional metadata (only if these columns exist; if not, Supabase will error)
       // If you haven't added these columns, comment these two lines out:
-      // preset: scored.presetKey,
-      // qualification_threshold: scored.threshold,
+      preset: scored.presetKey,
+      qualification_threshold: scored.threshold,
     };
 
     const { data: inserted, error: insertError } = await supabase
