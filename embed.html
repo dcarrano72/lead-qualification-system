@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request a Consultation</title>
+    <style>
+  :root {
+    --primary: #2f80ed;
+    --primary-dark: #1c60c4;
+    --bg-start: #0f3c78;
+    --bg-end: #2f80ed;
+    --card-radius: 14px;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(160deg, var(--bg-start), var(--bg-end));
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+
+  .intake-container {
+    width: 100%;
+    max-width: 520px;
+  }
+
+  .form-card {
+    background: #ffffff;
+    border-radius: var(--card-radius);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    padding: 40px 32px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .form-title {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 30px;
+    font-weight: 600;
+    color: #1c1c1c;
+  }
+
+  h2 {
+    margin-top: 0;
+    font-weight: 500;
+    font-size: 18px;
+    margin-bottom: 20px;
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    font-size: 14px;
+    transition: border 0.2s ease;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--primary);
+    outline: none;
+  }
+
+  .options-grid {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .option-btn {
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: #f7f9fc;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+  }
+
+  .option-btn:hover {
+    border-color: var(--primary);
+  }
+
+  .option-btn.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+
+  .checkbox {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  .checkbox input {
+    width: auto;
+    margin-right: 8px;
+  }
+
+  .step-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  button {
+    padding: 12px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s ease;
+  }
+
+  .next-btn,
+  .submit-btn {
+    background: var(--primary);
+    color: #fff;
+    flex: 1;
+  }
+
+  .next-btn:hover,
+  .submit-btn:hover {
+    background: var(--primary-dark);
+  }
+
+  .back-btn {
+    background: #eaeaea;
+    color: #333;
+    flex: 1;
+  }
+
+  .back-btn:hover {
+    background: #dcdcdc;
+  }
+
+  .progress-wrapper {
+    height: 6px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    width: 25%;
+    background: #fff;
+    transition: width 0.3s ease;
+  }
+
+  .form-step {
+    display: none;
+    animation: fade 0.3s ease forwards;
+  }
+
+  .form-step.active {
+    display: block;
+  }
+
+  .success-message {
+    text-align: center;
+  }
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+      transform: translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .form-card {
+      padding: 28px 20px;
+    }
+  }
+</style>
+</head>
+<body>
+ <div class="intake-container">
+
+  <!-- Progress Bar -->
+  <div class="progress-wrapper">
+    <div class="progress-bar"></div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="form-card">
+
+    <h1 class="form-title">Request a Consultation</h1>
+
+    <form id="multiStepForm">
+
+      <!-- STEP 1 -->
+      <div class="form-step active" data-step="1">
+        <h2>What service do you need?</h2>
+        <div id="serviceOptions" class="options-grid">
+          <!-- JS will populate buttons here -->
+        </div>
+        <button type="button" class="next-btn">Next</button>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="form-step" data-step="2">
+        <h2>What is your expected budget?</h2>
+        <div id="budgetOptions" class="options-grid">
+          <!-- JS will populate -->
+        </div>
+        <div class="step-nav">
+          <button type="button" class="back-btn">Back</button>
+          <button type="button" class="next-btn">Next</button>
+        </div>
+      </div>
+
+      <!-- STEP 3 -->
+      <div class="form-step" data-step="3">
+        <h2>When are you looking to start?</h2>
+
+        <select name="timeline" required>
+          <option value="">Select timeline</option>
+          <option value="asap">ASAP</option>
+          <option value="1_3_months">1–3 Months</option>
+          <option value="3_6_months">3–6 Months</option>
+          <option value="just_researching">Just researching</option>
+        </select>
+
+        <label class="checkbox">
+          <input type="checkbox" name="decision_maker" />
+          I am the decision maker
+        </label>
+
+        <div class="step-nav">
+          <button type="button" class="back-btn">Back</button>
+          <button type="button" class="next-btn">Next</button>
+        </div>
+      </div>
+
+      <!-- STEP 4 -->
+      <div class="form-step" data-step="4">
+        <h2>Tell us about your project</h2>
+
+        <input type="text" name="first_name" placeholder="First Name" required />
+        <input type="text" name="last_name" placeholder="Last Name" required />
+        <input type="email" name="email" placeholder="Email Address" required />
+        <input type="tel" name="phone" placeholder="Phone Number" />
+        <input type="text" name="zip" placeholder="ZIP Code" />
+
+        <textarea name="description" placeholder="Brief description of your project..." rows="4"></textarea>
+
+        <div class="step-nav">
+          <button type="button" class="back-btn">Back</button>
+          <button type="submit" class="submit-btn">Submit Request</button>
+        </div>
+      </div>
+
+      <!-- Success Message -->
+      <div class="success-message" style="display:none;">
+        <h2>Thank you.</h2>
+        <p>Your consultation request has been submitted successfully.</p>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<script>
+  // ---------------------------
+  // Presets (easy to expand)
+  // ---------------------------
+  const PRESETS = {
+    remodeling: {
+      title: "Request a Consultation",
+      services: ["Kitchen Remodel", "Bathroom Remodel", "Home Addition", "Basement Finish", "General Remodel"],
+      budgets: [
+        { label: "Under $15,000", value: "under_15k" },
+        { label: "$15,000 – $30,000", value: "15k_30k" },
+        { label: "$30,000 – $60,000", value: "30k_60k" },
+        { label: "$60,000+", value: "60k_plus" }
+      ]
+    },
+    roofing: {
+      title: "Request a Consultation",
+      services: ["Roof Repair", "Roof Replacement", "Storm Damage", "Skylight / Flashing", "Inspection"],
+      budgets: [
+        { label: "Under $5,000", value: "under_5k" },
+        { label: "$5,000 – $15,000", value: "5k_15k" },
+        { label: "$15,000 – $30,000", value: "15k_30k" },
+        { label: "$30,000+", value: "30k_60k" } 
+      ]
+    },
+    general: {
+      title: "Request a Consultation",
+      services: ["Service Request", "Repair", "Replacement", "Installation", "Other"],
+      budgets: [
+        { label: "Not sure yet", value: "unknown" },
+        { label: "Under $5,000", value: "under_5k" },
+        { label: "$5,000 – $15,000", value: "5k_15k" },
+        { label: "$15,000+", value: "15k_30k" }
+      ]
+    }
+  };
+
+  // ---------------------------
+  // Read URL params
+  // ---------------------------
+  const params = new URLSearchParams(window.location.search);
+  const client = params.get("client") || "";     // required for real use
+  const source = params.get("source") || "";
+  const presetKey = (params.get("preset") || "general").toLowerCase();
+  const preset = PRESETS[presetKey] || PRESETS.general;
+
+  // ---------------------------
+  // Grab DOM elements
+  // ---------------------------
+  const form = document.getElementById("multiStepForm");
+  const steps = Array.from(document.querySelectorAll(".form-step"));
+  const progressBar = document.querySelector(".progress-bar");
+  const successMessage = document.querySelector(".success-message");
+  const serviceOptionsEl = document.getElementById("serviceOptions");
+  const budgetOptionsEl = document.getElementById("budgetOptions");
+  const titleEl = document.querySelector(".form-title");
+
+  // Hidden state (we'll store selections here)
+  const state = {
+    service_type: "",
+    budget_range: ""
+  };
+
+  // Apply title
+  if (titleEl && preset.title) titleEl.textContent = preset.title;
+
+  // ---------------------------
+  // Helper: render option buttons
+  // ---------------------------
+  function renderOptions(container, options, stateKey) {
+    container.innerHTML = "";
+
+    options.forEach((opt) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "option-btn";
+      btn.textContent = typeof opt === "string" ? opt : opt.label;
+
+      const value = typeof opt === "string" ? opt : opt.value;
+
+      btn.addEventListener("click", () => {
+        // clear active
+        container.querySelectorAll(".option-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        state[stateKey] = value;
+      });
+
+      container.appendChild(btn);
+    });
+  }
+
+  // Render Step 1 and Step 2 presets
+  renderOptions(serviceOptionsEl, preset.services, "service_type");
+  renderOptions(budgetOptionsEl, preset.budgets, "budget_range");
+
+  // ---------------------------
+  // Step navigation
+  // ---------------------------
+  let currentStep = 1;
+
+  function showStep(stepNumber) {
+    currentStep = stepNumber;
+    steps.forEach((stepEl) => {
+      stepEl.classList.toggle("active", Number(stepEl.dataset.step) === currentStep);
+    });
+
+    // Progress: 4 steps total
+    const pct = Math.round((currentStep / 4) * 100);
+    progressBar.style.width = pct + "%";
+    // Scroll form into view for mobile
+    document.querySelector(".form-card").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function validateStep(stepNumber) {
+    // Step 1: must pick service
+    if (stepNumber === 1) return !!state.service_type;
+
+    // Step 2: must pick budget
+    if (stepNumber === 2) return !!state.budget_range;
+
+    // Step 3: timeline required
+    if (stepNumber === 3) {
+      const timeline = form.querySelector('select[name="timeline"]');
+      return timeline && timeline.value.trim().length > 0;
+    }
+
+    return true;
+  }
+
+  function attachStepButtons() {
+    // Next buttons
+    document.querySelectorAll(".next-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!validateStep(currentStep)) {
+          // light, non-annoying feedback
+          btn.textContent = "Please choose an option";
+          setTimeout(() => (btn.textContent = "Next"), 900);
+          return;
+        }
+        showStep(Math.min(4, currentStep + 1));
+      });
+    });
+
+    // Back buttons
+    document.querySelectorAll(".back-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        showStep(Math.max(1, currentStep - 1));
+      });
+    });
+  }
+
+  attachStepButtons();
+  showStep(1);
+
+  // ---------------------------
+  // Submit handler
+  // ---------------------------
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    // Collect standard inputs from Step 3+4
+    const payload = Object.fromEntries(new FormData(form).entries());
+
+    // Add state selections from step buttons
+    payload.service_type = state.service_type || null;
+    payload.budget_range = state.budget_range || null;
+
+    // Add client/source/preset
+    payload.client_slug = client || null;
+    payload.source = source || null;
+    payload.preset = presetKey;
+
+    // Normalize checkbox
+    payload.decision_maker = payload.decision_maker === "on";
+
+    // Safety: require client in real embed usage
+    // (For demo, you can allow missing client)
+    // If you want strict, uncomment:
+    // if (!payload.client_slug) return;
+
+    const submitBtn = form.querySelector(".submit-btn");
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = "Submitting...";
+    submitBtn.disabled = true;
+
+    try {
+      const res = await fetch("/.netlify/functions/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || "Submission failed");
+      }
+
+      // Hide steps + show success message
+      steps.forEach((s) => (s.style.display = "none"));
+      successMessage.style.display = "block";
+
+      // Reset form and state so it can be used again
+      form.reset();
+      state.service_type = "";
+      state.budget_range = "";
+      document.querySelectorAll(".option-btn").forEach(b => b.classList.remove("active"));
+      progressBar.style.width = "100%";
+
+      // Optional: bring it back after a moment
+      setTimeout(() => {
+        successMessage.style.display = "none";
+        steps.forEach((s) => (s.style.display = ""));
+        showStep(1);
+      }, 3500);
+
+    } catch (err) {
+      console.error(err);
+      submitBtn.textContent = "Error — try again";
+      setTimeout(() => {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+      }, 1400);
+      return;
+    }
+
+    submitBtn.textContent = originalText;
+    submitBtn.disabled = false;
+  });
+</script>
+</body>
+</html>
