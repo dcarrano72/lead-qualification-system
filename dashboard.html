@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard</title>
+  <style>
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#f5f7fb; color:#111; }
+    header { background: linear-gradient(160deg, #0f3c78, #2f80ed); color:#fff; padding:18px 18px; }
+    .wrap { max-width:1100px; margin:0 auto; }
+    .topbar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    .brand { font-weight:700; letter-spacing:0.2px; }
+    .meta { font-size:13px; opacity:0.9; }
+    .btn { border:0; border-radius:10px; padding:10px 12px; cursor:pointer; font-size:13px; }
+    .btn.white { background:#fff; color:#0f3c78; }
+    .btn.ghost { background:rgba(255,255,255,0.18); color:#fff; }
+    main { padding:18px; }
+    .card { background:#fff; border-radius:14px; box-shadow:0 10px 25px rgba(0,0,0,0.06); padding:14px; }
+    .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+    select, input { padding:10px 12px; border-radius:10px; border:1px solid #ddd; font-size:13px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { text-align:left; padding:10px 8px; border-bottom:1px solid #eee; font-size:13px; vertical-align:top; }
+    th { color:#333; font-weight:600; }
+    .pill { display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; }
+    .q { background:#e8fff0; color:#116b3a; }
+    .nq { background:#fff3e6; color:#7a3d00; }
+    .muted { color:#666; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; }
+    .empty { padding:14px; color:#444; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap topbar">
+      <div>
+        <div class="brand">Lead Qualification</div>
+        <div id="clientMeta" class="meta">Loading…</div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button id="exportCsv" class="btn ghost">Export CSV</button>
+        <button id="logout" class="btn white">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <div class="controls">
+        <select id="filterQualified">
+          <option value="all">All leads</option>
+          <option value="qualified">Qualified only</option>
+          <option value="unqualified">Unqualified only</option>
+        </select>
+
+        <input id="search" placeholder="Search name, email, ZIP…" />
+        <select id="limit">
+          <option value="25">Last 25</option>
+          <option value="50" selected>Last 50</option>
+          <option value="100">Last 100</option>
+        </select>
+
+        <button id="refresh" class="btn">Refresh</button>
+      </div>
+
+      <div id="tableWrap"></div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { supabase } from "/assets/supabaseClient.js";
+
+    const clientMeta = document.getElementById("clientMeta");
+    const tableWrap = document.getElementById("tableWrap");
+    const filterQualified = document.getElementById("filterQualified");
+    const searchEl = document.getElementById("search");
+    const limitEl = document.getElementById("limit");
+    const refreshBtn = document.getElementById("refresh");
+    const exportBtn = document.getElementById("exportCsv");
+    const logoutBtn = document.getElementById("logout");
+
+    let cachedRows = [];
+
+    function esc(s) {
+      return String(s ?? "").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    function toCSV(rows) {
+      const headers = [
+        "created_at","is_qualified","score","first_name","last_name","email","phone",
+        "project_type","budget_range","timeline","zip","decision_maker","source","description"
+      ];
+      const lines = [headers.join(",")];
+
+      for (const r of rows) {
+        const vals = headers.map(h => {
+          const v = r[h];
+          const s = (v === null || v === undefined) ? "" : String(v).replaceAll('"','""');
+          return `"${s}"`;
+        });
+        lines.push(vals.join(","));
+      }
+      return lines.join("\n");
+    }
+
+    function download(filename, text) {
+      const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function requireAuth() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        window.location.href = "/login.html";
+        return null;
+      }
+      return data.session;
+    }
+
+    async function loadClientMeta(email) {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("company_name, slug")
+        .eq("owner_email", email)
+        .single();
+
+      if (error || !data) {
+        clientMeta.innerHTML = `Logged in as <span class="mono">${esc(email)}</span> — <b>No client match</b>`;
+        return null;
+      }
+
+      clientMeta.innerHTML = `${esc(data.company_name)} <span class="muted">(${esc(data.slug)})</span> — <span class="mono">${esc(email)}</span>`;
+      return data;
+    }
+
+    async function loadLeads() {
+      tableWrap.innerHTML = `<div class="empty">Loading leads…</div>`;
+
+      const session = await requireAuth();
+      if (!session) return;
+
+      const email = session.user.email;
+      await loadClientMeta(email);
+
+      let q = supabase
+        .from("leads")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(Number(limitEl.value));
+
+      if (filterQualified.value === "qualified") q = q.eq("is_qualified", true);
+      if (filterQualified.value === "unqualified") q = q.eq("is_qualified", false);
+
+      const { data, error } = await q;
+
+      if (error) {
+        tableWrap.innerHTML = `<div class="empty">Error loading leads: ${esc(error.message)}</div>`;
+        return;
+      }
+
+      cachedRows = data || [];
+      renderTable();
+    }
+
+    function renderTable() {
+      const term = searchEl.value.trim().toLowerCase();
+      const rows = term
+        ? cachedRows.filter(r => {
+            const hay = [
+              r.first_name, r.last_name, r.email, r.phone, r.zip, r.project_type, r.source
+            ].join(" ").toLowerCase();
+            return hay.includes(term);
+          })
+        : cachedRows;
+
+      if (!rows.length) {
+        tableWrap.innerHTML = `<div class="empty">No leads found.</div>`;
+        return;
+      }
+
+      tableWrap.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Status</th>
+              <th>Score</th>
+              <th>Lead</th>
+              <th>Project</th>
+              <th>Budget</th>
+              <th>Timeline</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td class="muted">${esc(new Date(r.created_at).toLocaleString())}</td>
+                <td>${r.is_qualified ? `<span class="pill q">Qualified</span>` : `<span class="pill nq">Unqualified</span>`}</td>
+                <td><b>${esc(r.score)}</b></td>
+                <td>
+                  <b>${esc((r.first_name || "") + " " + (r.last_name || ""))}</b><br/>
+                  <span class="muted">${esc(r.email || "")}</span><br/>
+                  <span class="muted">${esc(r.phone || "")}</span>
+                </td>
+                <td>${esc(r.project_type || "—")}<br/><span class="muted">ZIP ${esc(r.zip || "—")}</span></td>
+                <td>${esc(r.budget_range || "—")}</td>
+                <td>${esc(r.timeline || "—")}<br/><span class="muted">Decider: ${r.decision_maker ? "Yes" : "No"}</span></td>
+                <td class="muted">${esc(r.qualification_notes || "")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    refreshBtn.addEventListener("click", loadLeads);
+    filterQualified.addEventListener("change", loadLeads);
+    limitEl.addEventListener("change", loadLeads);
+    searchEl.addEventListener("input", renderTable);
+
+    exportBtn.addEventListener("click", () => {
+      const csv = toCSV(cachedRows);
+      download(`leads-${new Date().toISOString().slice(0,10)}.csv`, csv);
+    });
+
+    logoutBtn.addEventListener("click", async () => {
+      await supabase.auth.signOut();
+      window.location.href = "/login.html";
+    });
+
+    supabase.auth.onAuthStateChange(() => loadLeads());
+    loadLeads();
+  </script>
+</body>
+</html>
