@@ -270,24 +270,38 @@ export default async (req) => {
       </div>
     `;
 
-    const { error: emailError } = await resend.emails.send({
-      from: fromEmail,
-      to: [client.notification_email],
-      subject,
-      html,
-    });
+    console.log("Resend: attempting to send email...");
+console.log("To:", client.notification_email);
+console.log("From:", fromEmail);
 
-    if (emailError) {
-      // Don't fail the request if email fails—lead is already saved.
-      console.error("Resend error:", emailError);
-    }
+let emailErrorMsg = null;
+
+try {
+  const { error: emailError } = await resend.emails.send({
+    from: fromEmail,
+    to: [client.notification_email],
+    subject,
+    html,
+  });
+
+  if (emailError) {
+    console.error("Resend error:", emailError);
+    emailErrorMsg = emailError.message || JSON.stringify(emailError);
+  } else {
+    console.log("Resend: email sent successfully");
+  }
+} catch (e) {
+  console.error("Resend exception:", e);
+  emailErrorMsg = e?.message || String(e);
+}
 
     return new Response(
       JSON.stringify({
         ok: true,
         score: scored.score,
         is_qualified: scored.isQualified,
-        emailed: !emailError,
+        emailed: !emailErrorMsg,
+        email_error: emailErrorMsg,
         preset: scored.presetKey,
         threshold: scored.threshold,
       }),
