@@ -229,7 +229,7 @@ export default async (req) => {
     }
 
     // Email (send for both qualified + unqualified)
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "QualifiedLead <leads@send.mantisdigitalmedia.com>";
     const leadName =
       `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || "New Lead";
 
