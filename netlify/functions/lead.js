@@ -241,6 +241,7 @@ export default async (req) => {
     const html = `
       <div style="font-family: Arial, sans-serif; line-height: 1.5;">
         <h2>${subjectPrefix} Lead</h2>
+        <p><strong>DEBUG FROM:</strong> ${fromEmail}</p>
         <p><strong>Client:</strong> ${client.company_name} (${client.slug})</p>
         <p><strong>Score:</strong> ${scored.score} (threshold ${scored.threshold})<br/>
            <strong>Preset:</strong> ${label(scored.presetKey)}<br/>
